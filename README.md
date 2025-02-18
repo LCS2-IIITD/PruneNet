@@ -16,7 +16,7 @@ The main scripts are in the `experiments/` folder. Our code utilizes scripts
 from the [SliceGPT](https://github.com/microsoft/TransformerCompression)
 repository. Visit their repository to get installation instructions.
 
-# Running PruneNet
+## Running PruneNet
 
 As an example, to run PruneNet on `microsoft/phi-2` with a
 compression ratio of $0.25$ with fine-tuning of the compressed model, do the
@@ -53,7 +53,7 @@ series) were generated using models compressed with the
 `experiments/run_all_slicing*` scripts. For a detailed example with
 `microsoft/phi-2`, see `experiments/run_all_slicing_phi.sh`.
 
-# Evaluation scripts
+## Evaluation scripts
 
 We re-use the LM evaluation scripts from
 [SliceGPT](https://github.com/microsoft/TransformerCompression) to evaluate our
@@ -62,7 +62,7 @@ compressed models. See `experiments/run_lm_eval.py` for details. See the
 For our running example of `microsoft/phi-2`, the script
 `experiments/run_llm_eval_phi.sh` is helpful.
 
-# Slicing the attention modules
+## Slicing the attention modules
 
 In addition to slicing the FFN weight matrices, the scripts
 `experiments/trainable_activation_sparsity_allmodules.py` and
@@ -71,7 +71,7 @@ same pruning technique. However, we observed that doing this harms the
 compressed model's performance significantly, and this step is therefore not
 advised.
 
-# Citation
+## Citation
 
 If you find our work useful in your projects/research, kindly cite our paper:
 
