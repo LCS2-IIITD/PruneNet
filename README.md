@@ -1,8 +1,7 @@
-# PruneNet: Calibration-Free Model Compression [ICLR 2025]
+# PruneNet: Calibration-Free Model Compression
 
 This repository contains the code for the paper
-[You Only Prune Once: Designing Calibration-Free Model Compression With Policy Learning](https://arxiv.org/abs/2501.15296)
-(ICLR'25).
+[You Only Prune Once: Designing Calibration-Free Model Compression With Policy Learning](https://arxiv.org/abs/2501.15296).
 
 The paper introduces PruneNet, a novel structured-pruning technique
 which intrinsically prunes transformer models without relying on any calibration
