@@ -23,7 +23,7 @@ import numpy as np
 from scipy import stats
 
 from torch.profiler import profile, record_function, ProfilerActivity
-from fvcore.nn import FlopCountAnalysis
+
 import gc
 
 import wandb
