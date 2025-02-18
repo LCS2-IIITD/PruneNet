@@ -1,0 +1,34 @@
+repos:
+- repo: https://github.com/psf/black
+  rev: 22.10.0
+  hooks:
+  - id: black
+    types_or: [python]
+    args: ["--config=./pyproject.toml"]
+
+- repo: https://github.com/pycqa/isort
+  rev: 5.12.0
+  hooks:
+  - id: isort
+    args: ["--settings-file=./pyproject.toml"]
+
+- repo: local
+  hooks:
+  - id: mypy
+    stages: [manual]
+    name: mypy
+    entry: bash -c 'mypy $@ || true'  # Show suggestions but don't fail
+    language: system
+    pass_filenames: false
+    types: [python]
+    args: ["--config-file=pyproject.toml", "."]
+
+- repo: local
+  hooks:
+  - id: pylint
+    stages: [manual]
+    name: pylint
+    entry: bash -c 'pylint $@ || true' # Show suggestions but don't fail
+    language: system
+    types: [python]
+    args: [".", "--rcfile=./pyproject.toml"]

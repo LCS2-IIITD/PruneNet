@@ -1,0 +1,95 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+[build-system]
+requires = ["setuptools>=42.0.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transformercompression"
+version = "0.0.1"
+description= "Implementation of methods for compressing transformers"
+authors = [
+    {name = "James Hensman"},
+    {name = "Max Croci"},
+    {name = "Saleh Ashkboos"},
+    {name = "Marcelo Gennari do Nascimento"},
+    {name = "Dmitry Kats"},
+    {name = "Pashmina Cameron"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "accelerate",
+    "datasets==2.18.0",
+    "ml-collections",
+    "numpy",
+    "torch",
+    "tqdm",
+    "transformers==4.41.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.5.1",
+    "pre-commit",
+    "pylint>=3.0.0",
+    "pytest>=7.4.2",
+]
+
+experiment = [
+    "lm-eval==0.4.1",
+    "wandb",
+]
+
+finetune = [
+    "syne-tune[gpsearchers]==0.10.0",
+    "peft==0.6.2",
+]
+
+all = ["transformercompression[dev,experiment,finetune]"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["*_test.py", "tests/*"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[tool.black]
+line-length = 120
+skip-string-normalization = true
+
+[tool.isort]
+py_version = 310
+profile = "black"
+line_length = 120
+
+[tool.mypy]
+python_version = "3.10"
+disallow_untyped_defs = true
+
+# TODO: Consider adding this option on per-library basis:
+# https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
+ignore_missing_imports = true
+
+[tool.pylint.main]
+max-line-length = 120
+suggestion-mode = true
+py-version = "3.10"
+
+[tool.pylint.messages_control]
+# Disable the message, report, category or checker with the given id(s).
+disable = [
+    "logging-fstring-interpolation"
+]
+
+[tool.pylint.basic]
+docstring-min-length = 10
+
+[tool.pytest.ini_options]
+markers = [
+    "gpu: tests that require GPU to run",
+    "experiment: end to end experiments, slow to run",
+]

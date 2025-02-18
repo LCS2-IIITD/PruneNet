@@ -3,44 +3,56 @@
 This repository contains the code for the paper
 [You Only Prune Once: Designing Calibration-Free Model Compression With Policy Learning](https://arxiv.org/abs/2501.15296).
 
-The paper introduces PruneNet, a novel structured-pruning technique
-which intrinsically prunes transformer models without relying on any calibration
-datasets. PruneNet works by slicing-off the unimportant rows from the
-weight matrices of FFN layers of these models, where the importance scores of
-the rows are computed using a two-layered neural network. The pruning process is
-modeled as a stochastic policy which is trained to preserve the spectral
-structure of the weight matrices using a standard RL-based pipeline.
+The paper introduces PruneNet, a novel structured-pruning technique which
+intrinsically prunes transformer models without relying on any calibration
+datasets. PruneNet works by slicing-off the unimportant rows from the weight
+matrices of FFN layers of these models, where the importance scores of the rows
+are computed using a two-layered neural network. The pruning process is modeled
+as a stochastic policy which is trained to preserve the spectral structure of
+the weight matrices using a standard RL-based pipeline.
 
 The main scripts are in the `experiments/` folder. Our code utilizes scripts
 from the [SliceGPT](https://github.com/microsoft/TransformerCompression)
 repository. Visit their repository to get installation instructions.
 
-## Running PruneNet
+# Installation
 
-As an example, to run PruneNet on `microsoft/phi-2` with a
-compression ratio of $0.25$ with fine-tuning of the compressed model, do the
-following from the `experiments` folder:
+We re-use many components from
+[SliceGPT](https://github.com/microsoft/TransformerCompression) pipeline. To
+install, run the following:
+
+    pip install -e .[experiment,finetune]
+
+**Note**: This will install the `transformercompression` package (with the same name
+as the [SliceGPT](https://github.com/microsoft/TransformerCompression) project).
+Make sure to run this code in a separate environment to avoid conflicts.
+
+# Running PruneNet
+
+As an example, to run PruneNet on `microsoft/phi-2` with a compression ratio of
+$0.25$ with fine-tuning of the compressed model, do the following from the
+`experiments` folder:
 
     CUDA_VISIBLE_DEVICES=1 python trainable_activation_sparsity.py
-        --log DEBUG                                
-        --use_gpu                                  
-        --model_name microsoft/phi-2               
-        --num_episodes 15                          
-        --learning-rate-action 0.0001              
-        --sparsity_level 0.25                      
-        --ppl-eval-dataset wikitext2               
-        --finetune-dataset wikitext2               
-        --finetune-train-nsamples 8000             
-        --finetune-train-seqlen 1024               
-        --finetune-train-batch-size 3              
-        --lora-alpha 10                            
-        --lora-r 32                                
-        --lora-dropout 0.05                        
-        --lora-target-option attn_head_and_mlp     
-        --eval-steps 16                            
-        --save-steps 16                            
-        --epochs 1                                 
-        --model_save_path "../models/"             
+        --log DEBUG
+        --use_gpu
+        --model_name microsoft/phi-2
+        --num_episodes 15
+        --learning-rate-action 0.0001
+        --sparsity_level 0.25
+        --ppl-eval-dataset wikitext2
+        --finetune-dataset wikitext2
+        --finetune-train-nsamples 8000
+        --finetune-train-seqlen 1024
+        --finetune-train-batch-size 3
+        --lora-alpha 10
+        --lora-r 32
+        --lora-dropout 0.05
+        --lora-target-option attn_head_and_mlp
+        --eval-steps 16
+        --save-steps 16
+        --epochs 1
+        --model_save_path "../models/"
         --sparsity_technique bernoulli
 
 The weights of the trained action model (which computes the importance scores)
@@ -81,4 +93,4 @@ If you find our work useful in your projects/research, kindly cite our paper:
         booktitle={The Thirteenth International Conference on Learning Representations},
         year={2025},
         url={https://openreview.net/forum?id=5RZoYIT3u6}
-    } 
+    }
