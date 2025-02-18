@@ -4,9 +4,9 @@ This repository contains the code for the paper
 [You Only Prune Once: Designing Calibration-Free Model Compression With Policy Learning](https://arxiv.org/abs/2501.15296)
 (ICLR'25).
 
-The paper introducestexttt{PruneNet}, a novel structured-pruning technique
+The paper introduces PruneNet, a novel structured-pruning technique
 which intrinsically prunes transformer models without relying on any calibration
-datasets.texttt{PruneNet} works by slicing-off the unimportant rows from the
+datasets. PruneNet works by slicing-off the unimportant rows from the
 weight matrices of FFN layers of these models, where the importance scores of
 the rows are computed using a two-layered neural network. The pruning process is
 modeled as a stochastic policy which is trained to preserve the spectral
@@ -16,9 +16,9 @@ The main scripts are in the `experiments/` folder. Our code utilizes scripts
 from the [SliceGPT](https://github.com/microsoft/TransformerCompression)
 repository. Visit their repository to get installation instructions.
 
-# Running $\texttt{PruneNet}$.
+# Running PruneNet
 
-As an example, to run $\texttt{PruneNet}$ on `microsoft/phi-2` with a
+As an example, to run PruneNet on `microsoft/phi-2` with a
 compression ratio of $0.25$ with fine-tuning of the compressed model, do the
 following from the `experiments` folder:
 
