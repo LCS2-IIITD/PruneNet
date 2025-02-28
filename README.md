@@ -22,6 +22,7 @@ We re-use many components from
 install, run the following:
 
     pip install -e .[experiment,finetune]
+    pip install git+https://github.com/pnnl/DDKS
 
 **Note**: This will install the `transformercompression` package (with the same name
 as the [SliceGPT](https://github.com/microsoft/TransformerCompression) project).
@@ -33,26 +34,26 @@ As an example, to run PruneNet on `microsoft/phi-2` with a compression ratio of
 $0.25$ with fine-tuning of the compressed model, do the following from the
 `experiments` folder:
 
-    CUDA_VISIBLE_DEVICES=1 python trainable_activation_sparsity.py
-        --log DEBUG
-        --use_gpu
-        --model_name microsoft/phi-2
-        --num_episodes 15
-        --learning-rate-action 0.0001
-        --sparsity_level 0.25
-        --ppl-eval-dataset wikitext2
-        --finetune-dataset wikitext2
-        --finetune-train-nsamples 8000
-        --finetune-train-seqlen 1024
-        --finetune-train-batch-size 3
-        --lora-alpha 10
-        --lora-r 32
-        --lora-dropout 0.05
-        --lora-target-option attn_head_and_mlp
-        --eval-steps 16
-        --save-steps 16
-        --epochs 1
-        --model_save_path "../models/"
+    CUDA_VISIBLE_DEVICES=1 python trainable_activation_sparsity.py \
+        --log DEBUG                             \
+        --use_gpu                               \
+        --model_name microsoft/phi-2            \
+        --num_episodes 15                       \
+        --learning-rate-action 0.0001           \
+        --sparsity_level 0.25                   \
+        --ppl-eval-dataset wikitext2            \
+        --finetune-dataset wikitext2            \
+        --finetune-train-nsamples 8000          \
+        --finetune-train-seqlen 1024            \
+        --finetune-train-batch-size 3           \
+        --lora-alpha 10                         \
+        --lora-r 32                             \
+        --lora-dropout 0.05                     \
+        --lora-target-option attn_head_and_mlp  \
+        --eval-steps 16                         \
+        --save-steps 16                         \
+        --epochs 1                              \
+        --model_save_path "../models/"          \
         --sparsity_technique bernoulli
 
 The weights of the trained action model (which computes the importance scores)

@@ -26,6 +26,7 @@ dependencies = [
     "ml-collections",
     "numpy",
     "torch",
+    "torchvision",
     "tqdm",
     "transformers==4.41.0",
 ]
