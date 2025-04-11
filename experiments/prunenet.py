@@ -10,16 +10,8 @@ from torch import nn
 from torch.autograd import Variable
 from torch.distributions.uniform import Uniform
 import torch
-import wandb
 
-from slicegpt import (
-    data_utils,
-    gpu_utils,
-    hf_utils,
-    layernorm_fusion,
-    rotate,
-    utils,
-)
+from slicegpt import utils
 from slicegpt.config import config
 from slicegpt.slicing_scheduler import ConstSlicingScheduler
 from scipy import stats
@@ -371,9 +363,6 @@ def _training(
             torch.nn.utils.clip_grad_norm_(action_model.parameters(), 1.0)
 
         logging.info(f"Episode: {episode}, loss: {total_loss/count}")
-        # if not (prunenet_args.no_wandb):
-        #     wandb.log({"Episodic Loss": total_loss / count})
-        #     wandb.log({"Episodic Reward": total_reward})
         logging.info(f"Episode: {episode}, Avg. reward: {total_reward / count}")
 
         state_pool = []
@@ -383,12 +372,37 @@ def _training(
         if total_reward > best_score:
             best_score = total_reward
             logging.info(
-                f"Got a better action model. Saving to {action_model_checkpoint}"
+                f"Got a better action model. Saving to {action_model_checkpoint}."
             )
             torch.save(
                 action_model.state_dict(),
                 action_model_checkpoint,
             )
+
+
+def _prune_model(prunenet_args, model, action_model):
+    action_model.eval()
+
+    # prune each layer
+    for layer in _get_all_layers(prunenet_args.model_name, model):
+        weight = _get_layer_weight(prunenet_args.model_name, layer)
+        state = Variable(copy.deepcopy(weight))
+        with torch.autocast(
+            device_type=config.device.type, dtype=torch.float16
+        ):
+            with torch.no_grad():
+                o = action_model(state)  # (3072, )
+                feat_len = state.shape[0]
+                row_indices = (
+                    torch.multinomial(
+                        o,
+                        int((1 - prunenet_args.compression_ratio) * feat_len),
+                        replacement=False,
+                    )
+                    .sort()
+                    .values
+                )
+        _slicing(prunenet_args.model_name, layer, row_indices)
 
 
 if __name__ == "__main__":
@@ -404,6 +418,10 @@ if __name__ == "__main__":
         Path(prunenet_args.save_dir)
         / f"action_model={prunenet_args.model_name.split('/')[-1]}_sparsity={prunenet_args.compression_ratio}.ckpt"
     )
+    compressed_model_checkpoint = (
+        Path(prunenet_args.save_dir)
+        / f"model={prunenet_args.model_name.split('/')[-1]}_sparsity={prunenet_args.compression_ratio}"
+    )
 
     # set the random seed
     _set_seed(prunenet_args.seed)
@@ -414,10 +432,27 @@ if __name__ == "__main__":
     model.eval()
     model.seqlen = model.config.max_position_embeddings
 
-    # the original parameter count
-    original_param_count = sum(int(p.nelement()) for p in model.parameters())
-    logging.info(f"Original model parameters: {original_param_count:,d}")
+    # get the action model
+    action_model = _get_action_model(
+        prunenet_args.model_name, model.config, prunenet_args.compression_ratio
+    )
+    action_model.to(config.device)
+    if action_model_checkpoint.is_file():
+        # no need to re-train the action model
+        logging.info(
+            f"Action model already exists at {action_model_checkpoint}. Now pruning."
+        )
+        action_model.load_state_dict(
+            torch.load(action_model_checkpoint, weights_only=True)
+        )
+        _prune_model(prunenet_args, model, action_model)
+        logging.info(
+            f"Saving the pruned model at {compressed_model_checkpoint}."
+        )
+        model.save_pretrained(compressed_model_checkpoint)
+        exit(0)
 
+    # otherwise, we train the action model
     # getting all svds for the uncompressed model
     all_svds_main_model = {}
     for i, layer in enumerate(_get_all_layers(prunenet_args.model_name, model)):
@@ -426,20 +461,6 @@ if __name__ == "__main__":
             main_w = main_w.to(torch.float32)
         _, s1, _ = torch.svd(main_w)
         all_svds_main_model[i] = s1
-
-    # now, depending on the pruning type
-    # we either prune randomly, or using an action model
-
-    # get the action model
-    action_model = _get_action_model(
-        prunenet_args.model_name, model.config, prunenet_args.compression_ratio
-    )
-    # if os.path.exists(model_checkpoint_save_path):
-    #     action_model.load_state_dict(
-    #         torch.load(model_checkpoint_save_path, weights_only=True)
-    #     )
-    #     action_model.to(device)
-    action_model.to(config.device)
 
     # the training loop
     _training(
@@ -450,58 +471,6 @@ if __name__ == "__main__":
         action_model_checkpoint,
     )
 
-    ######## inference ############
-    if os.path.exists(model_checkpoint_save_path):
-        action_model.load_state_dict(
-            torch.load(model_checkpoint_save_path, weights_only=True)
-        )
-    else:
-        pass
-
-    action_model.eval()
-
-    model = get_model_with_activation()
-
-    for layer in get_all_layers_before_lora(args.model_name, model):
-        if "opt" in args.model_name:
-            weight = layer.fc1.weight.data  # (3072, 768)
-        elif "phi" in args.model_name:
-            weight = layer.mlp.fc1.weight.data  # (3072, 768)
-        elif "llama" in args.model_name:
-            weight = layer.mlp.gate_proj.weight.data
-        elif "falcon" in args.model_name:
-            weight = layer.mlp.dense_h_to_4h.weight.data
-        else:
-            ValueError(
-                "Model type is not supported. Only OPT, Phi, Llama and Falcon models are supported."
-            )
-
-        state = Variable(cp(weight))
-
-        # print (weight)
-
-        with torch.autocast(device_type=device, dtype=torch.float16):
-            with torch.no_grad():
-                o = action_model(state)  # (3072, )
-                feat_len = state.shape[0]
-                row_indices = (
-                    torch.multinomial(
-                        o,
-                        int((1 - args.sparsity_level) * feat_len),
-                        replacement=False,
-                    )
-                    .sort()
-                    .values
-                )
-
-        slicing(args.model_name, layer, row_indices)
-
-
-"""
-python3 - \
-    --model_name facebook/opt-125m \
-    --seed 42 \
-    --compression_ratio 0.3 \
-    --save_dir /home/codetalker7/PruneNet/opt \
-    --device cuda:0
-"""
+    _prune_model(prunenet_args, model, action_model)
+    logging.info(f"Saving the pruned model at {compressed_model_checkpoint}.")
+    model.save_pretrained(compressed_model_checkpoint)
