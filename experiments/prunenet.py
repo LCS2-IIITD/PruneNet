@@ -3,78 +3,24 @@ import copy
 import logging
 import os
 from pathlib import Path
-import numpy as np
 
-import random
-from torch import nn
 from torch.autograd import Variable
-from torch.distributions.uniform import Uniform
 import torch
 
 from slicegpt import utils
 from slicegpt.config import config
-from slicegpt.slicing_scheduler import ConstSlicingScheduler
-from scipy import stats
 from transformers import AutoModel
 from tqdm import tqdm
 
-
-class SparsityPredictor(torch.nn.Module):
-    def __init__(
-        self, hidden_size=768, intermediate_size=3072, sparsity_level=0.2
-    ):
-        super(SparsityPredictor, self).__init__()
-
-        self.intermediate_size = intermediate_size
-        self.proj_intermediate = nn.Linear(
-            hidden_size, intermediate_size, bias=True
-        )
-        self.row_sparsities = nn.Parameter(
-            torch.rand(intermediate_size, 1), requires_grad=True
-        )  # (3072, 1)
-
-    def calculate_KLD(self):
-        return (
-            -1 * torch.log(self.alpha) * (1 - self.alpha)
-            - self.alpha * torch.log(1 - self.alpha)
-            + torch.log(torch.tensor(0.5)).to(self.alpha.device)
-        ).sum()
-
-    def calculate_l1_loss(self):
-        return torch.sum(torch.abs(self.keep_probs - self.density_level))
-
-    def calculate_total_loss(self):
-        return self.calculate_KLD()
-
-    def forward(self, weight_matrix):
-        if weight_matrix.shape[0] == self.intermediate_size:  # (3072, 768)
-            proj_ = self.proj_intermediate(weight_matrix)  # (3072, 3072)
-            alpha = nn.Sigmoid()(proj_ @ self.row_sparsities)[:, 0]  # (3072, )
-        else:
-            raise ValueError("The layer does not support sparsity operation")
-
-        self.alpha = alpha
-
-        m = Uniform(torch.tensor([0.0]), torch.tensor([1.0]))
-        eps = m.sample((alpha.shape[0],)).to(weight_matrix.device)[
-            :, 0
-        ]  # (3072, )
-
-        # Calculate the probabilities using reparametrization trick
-        keep_probs = nn.Sigmoid()(
-            torch.log(eps)
-            - torch.log(1 - eps)
-            + torch.log(alpha)
-            - torch.log(1 - alpha)
-        )
-        self.keep_probs = keep_probs
-
-        return keep_probs
-
-
-def _set_seed(seed):
-    torch.manual_seed(seed)
-    random.seed(seed)
+from prunenet_utils import (
+    _set_seed,
+    _get_all_layers,
+    _get_layer_weight,
+    _get_action_model,
+    _slicing,
+    _calculate_activation_reward,
+    _discount_rewards,
+)
 
 
 def prunenet_arg_parser(interactive: bool = True) -> argparse.Namespace:
@@ -140,136 +86,6 @@ def process_prunenet_args(args):
         config.device = torch.device(args.device)
 
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
-
-
-def _get_all_layers(model_name, model):
-    if "opt" in model_name:
-        all_layers = model.decoder.layers
-    elif "phi" in model_name:
-        all_layers = model.layers
-    elif "llama" in model_name:
-        all_layers = model.layers
-    elif "falcon" in model_name:
-        all_layers = model.transformer.h
-    else:
-        raise ValueError(
-            "Model type is not supported. Only OPT, Phi, Llama and Falcon models are supported."
-        )
-
-    return all_layers
-
-
-def _get_layer_weight(model_name, layer):
-    if "opt" in model_name:
-        main_w = layer.fc1.weight.data
-    elif "phi" in model_name:
-        main_w = layer.mlp.fc1.weight.data
-    elif "llama" in model_name:
-        main_w = layer.mlp.gate_proj.weight.data
-    elif "falcon" in model_name:
-        main_w = layer.mlp.dense_h_to_4h.weight.data
-    else:
-        ValueError(
-            "Model type is not supported. Only OPT, Phi, Llama and Falcon models are supported."
-        )
-    return main_w
-
-
-def _get_action_model(model_name, model_config, compression_ratio):
-    if "opt" in model_name:
-        action_model = SparsityPredictor(
-            model_config.hidden_size, model_config.ffn_dim, compression_ratio
-        )
-    elif "llama" in args.model_name or "phi" in args.model_name:
-        action_model = SparsityPredictor(
-            model_config.hidden_size,
-            model_config.intermediate_size,
-            compression_ratio,
-        )
-    elif "falcon" in args.model_name:
-        action_model = SparsityPredictor(
-            model_config.hidden_size,
-            model_config.ffn_hidden_size,
-            compression_ratio,
-        )
-    else:
-        raise ValueError(
-            "Model type is not supported. Only OPT, Phi, Llama and Falcon models are supported."
-        )
-    return action_model
-
-
-def _slicing(model_name, layer, row_indices):
-    if "opt" in model_name:
-        # slice the intermediate and output weight matrices appropriately
-        layer.fc1.out_features = len(row_indices)
-        layer.fc1.weight.data = layer.fc1.weight[row_indices, :]
-        layer.fc1.bias.data = layer.fc1.bias[row_indices]
-
-        # revert changes on output layer
-        layer.fc2.in_features = len(row_indices)
-        layer.fc2.weight.data = layer.fc2.weight[:, row_indices]
-
-    elif "phi" in model_name:
-        # slice the intermediate and output weight matrices appropriately
-        layer.mlp.fc1.out_features = len(row_indices)
-        layer.mlp.fc1.weight.data = layer.mlp.fc1.weight[row_indices, :]
-        layer.mlp.fc1.bias.data = layer.mlp.fc1.bias[row_indices]
-
-        # revert changes on output layer
-        layer.mlp.fc2.in_features = len(row_indices)
-        layer.mlp.fc2.weight.data = layer.mlp.fc2.weight[:, row_indices]
-
-    elif "llama" in model_name:
-        # slice the intermediate and output weight matrices appropriately
-        layer.mlp.gate_proj.out_features = len(row_indices)
-        layer.mlp.gate_proj.weight.data = layer.mlp.gate_proj.weight[
-            row_indices, :
-        ]
-
-        layer.mlp.up_proj.out_features = len(row_indices)
-        layer.mlp.up_proj.weight.data = layer.mlp.up_proj.weight[row_indices, :]
-
-        # revert changes on output layer
-        layer.mlp.down_proj.in_features = len(row_indices)
-        layer.mlp.down_proj.weight.data = layer.mlp.down_proj.weight[
-            :, row_indices
-        ]
-
-    elif "falcon" in model_name:
-        # slice the intermediate and output weight matrices appropriately
-        layer.mlp.dense_h_to_4h.out_features = len(row_indices)
-        layer.mlp.dense_h_to_4h.weight.data = layer.mlp.dense_h_to_4h.weight[
-            row_indices, :
-        ]
-
-        # revert changes on output layer
-        layer.mlp.dense_4h_to_h.in_features = len(row_indices)
-        layer.mlp.dense_4h_to_h.weight.data = layer.mlp.dense_4h_to_h.weight[
-            :, row_indices
-        ]
-
-
-def _calculate_activation_reward(s1, weight_matrix2):
-    if weight_matrix2.dtype == torch.float16:
-        weight_matrix2 = weight_matrix2.to(torch.float32)
-
-    _, s2, _ = torch.svd(weight_matrix2)
-
-    dist = stats.ks_2samp(
-        s1.detach().cpu().numpy(), s2.detach().cpu().numpy()
-    ).statistic
-
-    # dist = s2.max() #torch.abs(s2.max() - 1)
-    if dist == 0:
-        return 99999
-    else:
-        return 1 / dist
-
-
-def _discount_rewards(rewards, gamma=0.99):
-    r = np.array([gamma**i * rewards[i] for i in range(len(rewards))])
-    return r
 
 
 def _training(
