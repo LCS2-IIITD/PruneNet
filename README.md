@@ -11,77 +11,58 @@ are computed using a two-layered neural network. The pruning process is modeled
 as a stochastic policy which is trained to preserve the spectral structure of
 the weight matrices using a standard RL-based pipeline.
 
-The main scripts are in the `experiments/` folder. Our code utilizes scripts
-from the [SliceGPT](https://github.com/microsoft/TransformerCompression)
-repository. Visit their repository to get installation instructions.
+# Installation and requirements
 
-# Installation
+We re-use many components from the
+[SliceGPT](https://github.com/microsoft/TransformerCompression) pipeline. For
+this, we recommend a Python version `>=3.10`. To install the required
+components, run the following:
 
-We re-use many components from
-[SliceGPT](https://github.com/microsoft/TransformerCompression) pipeline. To
-install, run the following:
-
+    git clone https://github.com/microsoft/TransformerCompression
+    cd TransformerCompression
     pip install -e .[experiment,finetune]
     pip install git+https://github.com/pnnl/DDKS
 
-**Note**: This will install the `transformercompression` package (with the same name
-as the [SliceGPT](https://github.com/microsoft/TransformerCompression) project).
-Make sure to run this code in a separate environment to avoid conflicts.
+# Usage
 
-# Running PruneNet
+The main scripts are in the `prunenet` directory. `prunenet/prunenet.py` is the
+script which trains a `SparsityPredictor` (the policy model) used to compute
+importance scores for rows of weight matrices, and the same script uses such a
+policy model to prune an LLM. `prunenet/prunenet_utils.py` contains some utility
+functions used throughout our implementation. `prunenet/SparsityPredictor.py`
+contains the PyTorch definition of the policy model.
 
-As an example, to run PruneNet on `microsoft/phi-2` with a compression ratio of
-$0.25$ with fine-tuning of the compressed model, do the following from the
-`experiments` folder:
+Here is an example which prunes the `facebook/opt-125m` model for a compression
+ratio of `0.3`. Most users should be able to run this example locally.
 
-    CUDA_VISIBLE_DEVICES=1 python trainable_activation_sparsity.py \
-        --log DEBUG                             \
-        --use_gpu                               \
-        --model_name microsoft/phi-2            \
-        --num_episodes 15                       \
-        --learning-rate-action 0.0001           \
-        --sparsity_level 0.25                   \
-        --ppl-eval-dataset wikitext2            \
-        --finetune-dataset wikitext2            \
-        --finetune-train-nsamples 8000          \
-        --finetune-train-seqlen 1024            \
-        --finetune-train-batch-size 3           \
-        --lora-alpha 10                         \
-        --lora-r 32                             \
-        --lora-dropout 0.05                     \
-        --lora-target-option attn_head_and_mlp  \
-        --eval-steps 16                         \
-        --save-steps 16                         \
-        --epochs 1                              \
-        --model_save_path "../models/"          \
-        --sparsity_technique bernoulli
+    CUDA_VISIBLE_DEVICES=0 python3 -m prunenet                  \
+        --model_name facebook/opt-125m                          \
+        --compression_ratio 0.3                                 \
+        --save_dir  /home/codetalker7/compressed_models/opt/    \
+        --device cuda:0
 
-The weights of the trained action model (which computes the importance scores)
-will be saved in the `../models/` directory. This action model can then be
-reused to slice any LLM (see the script for more details).
-
-The results reported in the paper (for models from the LLaMa, OPT, and Phi
-series) were generated using models compressed with the
-`experiments/run_all_slicing*` scripts. For a detailed example with
-`microsoft/phi-2`, see `experiments/run_all_slicing_phi.sh`.
+This script will train the action model (if it doesn't already exist in the
+directory specified by `--save_dir`), save the action model, prune the model and
+save the weights of the pruned model. The trained action model can be re-used to
+compress other models as well.
 
 ## Evaluation scripts
 
-We re-use the LM evaluation scripts from
-[SliceGPT](https://github.com/microsoft/TransformerCompression) to evaluate our
-compressed models. See `experiments/run_lm_eval.py` for details. See the
-`experiments/run_llm_eval*` scripts for details on how we evaluate the models.
-For our running example of `microsoft/phi-2`, the script
-`experiments/run_llm_eval_phi.sh` is helpful.
+<!-- We re-use the LM evaluation scripts from -->
+<!-- [SliceGPT](https://github.com/microsoft/TransformerCompression) to evaluate our -->
+<!-- compressed models. See `experiments/run_lm_eval.py` for details. See the -->
+<!-- `experiments/run_llm_eval*` scripts for details on how we evaluate the models. -->
+<!-- For our running example of `microsoft/phi-2`, the script -->
+<!-- `experiments/run_llm_eval_phi.sh` is helpful. -->
 
 ## Slicing the attention modules
 
-In addition to slicing the FFN weight matrices, the scripts
-`experiments/trainable_activation_sparsity_allmodules.py` and
-`experiments/run_lm_eval_allmodules.py` slice the attention modules using the
-same pruning technique. However, we observed that doing this harms the
-compressed model's performance significantly, and this step is therefore not
-advised.
+<!-- In addition to slicing the FFN weight matrices, the scripts -->
+<!-- `experiments/trainable_activation_sparsity_allmodules.py` and -->
+<!-- `experiments/run_lm_eval_allmodules.py` slice the attention modules using the -->
+<!-- same pruning technique. However, we observed that doing this harms the -->
+<!-- compressed model's performance significantly, and this step is therefore not -->
+<!-- advised. -->
 
 ## Citation
 
