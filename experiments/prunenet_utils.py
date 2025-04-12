@@ -43,22 +43,20 @@ def _get_layer_weight(model_name, layer):
     return main_w
 
 
-def _get_action_model(model_name, model_config, compression_ratio):
+def _get_action_model(model_name, model_config):
     if "opt" in model_name:
         action_model = SparsityPredictor(
-            model_config.hidden_size, model_config.ffn_dim, compression_ratio
+            model_config.hidden_size, model_config.ffn_dim
         )
     elif "llama" in model_name or "phi" in model_name:
         action_model = SparsityPredictor(
             model_config.hidden_size,
             model_config.intermediate_size,
-            compression_ratio,
         )
     elif "falcon" in model_name:
         action_model = SparsityPredictor(
             model_config.hidden_size,
             model_config.ffn_hidden_size,
-            compression_ratio,
         )
     else:
         raise ValueError(

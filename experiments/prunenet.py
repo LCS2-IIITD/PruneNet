@@ -249,9 +249,7 @@ if __name__ == "__main__":
     model.seqlen = model.config.max_position_embeddings
 
     # get the action model
-    action_model = _get_action_model(
-        prunenet_args.model_name, model.config, prunenet_args.compression_ratio
-    )
+    action_model = _get_action_model(prunenet_args.model_name, model.config)
     action_model.to(config.device)
     if action_model_checkpoint.is_file():
         # no need to re-train the action model

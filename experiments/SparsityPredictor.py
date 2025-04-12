@@ -4,9 +4,7 @@ import torch
 
 
 class SparsityPredictor(torch.nn.Module):
-    def __init__(
-        self, hidden_size=768, intermediate_size=3072, sparsity_level=0.2
-    ):
+    def __init__(self, hidden_size=768, intermediate_size=3072):
         super(SparsityPredictor, self).__init__()
 
         self.intermediate_size = intermediate_size
